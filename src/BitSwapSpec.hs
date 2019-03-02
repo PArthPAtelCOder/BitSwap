@@ -1,4 +1,30 @@
 import Data.Time.Clock as CLK
+import qualified Data.HashTable as H
+import qualified Data.ByteString as BS
+
+
+
+-- State of Node running BitSwap Protocol
+data BitSwap = BitSwap
+			{
+				ledgers :: H.HashTable (ID NodeID) (Ledger),
+				activePeers :: H.HashTable (ID NodeID) Peer,
+				wantList :: [ CID ],
+				haveList :: H.HashTable (ID NodeID) IPFSObj
+				-- TODO: blockList
+			}
+
+-- Information related to peer
+data Peer = Peer
+		{
+			peerID :: ID NodeID,
+			ledger :: Ledger,
+			-- timestamp of last succesful message communication
+			-- Used for connection timeout
+			lastSeen :: IO UTCTime,
+			wantList :: [ CID ]
+		}
+
 
 data Ledger = Ledger
 			{
