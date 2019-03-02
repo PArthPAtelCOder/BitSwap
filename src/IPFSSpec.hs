@@ -27,3 +27,18 @@ getCIDv0 ::		BS.ByteString -- content
 getCIDv0 content =	CIDv0 cid
 			where
 				cid = MF.multiBase "base58" . MF.multiHash "SHA256" content -- TODO: replace with own implementation
+
+
+-- Returns CIDv1 for data
+-- <cidv1> ::= <multibase-prefix><cid-version><multicodec-content-type><multihash-content-address>
+getCIDv1 ::		BS.ByteString -- Data
+			->	HashFunction
+			->	CodecType
+			->	EncodingScheme
+			-> 	CID -- calcualted CIDv1
+
+getCIDv1 content hf ct es 	= 	CIDv1 cid
+							where
+								-- TODO: replace with own implementation
+								cidWithoutEncoding = multiCodec ct . multiHash hf content
+								cid = multiBase es (byte 1 + cidWithoutEncoding)
