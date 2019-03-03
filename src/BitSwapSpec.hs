@@ -3,6 +3,24 @@ import qualified Data.HashTable as H
 import qualified Data.ByteString as BS
 
 
+-- CONSTANTS to be added
+	-- ignore_cooldown
+	-- difficulty
+	-- alpha
+	-- k
+	-- silence_wait = 30 default
+
+-- Confirm ways to handle constants
+-- Using type class
+-- directly as a variable
+
+
+-- Questions
+-- 1) How to handle different version of CIDs as a Key
+
+-- TODO: implement VarInt
+
+
 
 -- State of Node running BitSwap Protocol
 data BitSwap = BitSwap
