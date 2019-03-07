@@ -1,5 +1,10 @@
+module IPFSSpec where
+	
+
 import qualified Data.ByteString as BS
 import MultiFormats as MF --Link with old project
+
+
 
 data CID = 	CIDv0 String -- always starts with Qm
 		|	CIDv1 String

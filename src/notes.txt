@@ -37,3 +37,29 @@
 -- 	False : due to timeout
 
 -- 	After closing both nodes clears state, store ledger for future usage.
+
+
+
+
+
+
+MVar || Chan are non-strict
+
+MVar
+----------
+
+takeMVar
+putMVar
+modifyMVar :: MVar a -> (a -> IO (a, b)) -> IO b
+tryTakeMVar :: MVar a -> IO (Maybe a)
+
+
+
+chan
+----
+ch <- newChan
+writeChan ch "hello world"
+readChan ch >>= print (blocking fn)
+
+By default GHC compiles code to run on Single core only
+For mluti-core we have to use -threaded while while generating executable.
