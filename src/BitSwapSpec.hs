@@ -36,7 +36,6 @@ msgDelimiter = "\n"
 --------------------------------------------------------------
 objs =
   [ IPFSObj (DBC.pack "kQ7qwL8kGhVLB1WVFXxR") []
-  , IPFSObj (DBC.pack "YCHKLFNf6Q2PTtzBUkdu") []
   , IPFSObj (DBC.pack "frSc4P5V73TlbWx9VhTu") []
   , IPFSObj (DBC.pack "rmxR8fJvs8eWiPnesOMt") []
   ]
@@ -44,6 +43,8 @@ objs =
 storage = Prelude.foldl f M.empty objs
 	where
 		f x y = M.insert (getCIDv0 y) y x
+
+wantlist = [ getCIDv0 (IPFSObj (DBC.pack "YCHKLFNf6Q2PTtzBUkdu") []) ]
 --------------------------------------------------------------
 
 data Priority = Low
@@ -82,7 +83,7 @@ data BSNodeState = BSNodeState
 				deriving(Show)
 
 --TODO: Node ID
-emptyBSNodeState = BSNodeState (BS.pack [0::Word8]) M.empty M.empty [] storage [] (WantListMsg [])
+emptyBSNodeState = BSNodeState (BS.pack [0::Word8]) M.empty M.empty wantlist storage [] (WantListMsg [])
 
 
 isPeerBlocked :: 	ID NodeID -- Peer ID

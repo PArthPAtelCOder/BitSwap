@@ -10,6 +10,7 @@ import BitSwapSpec as BSS
 import BitSwapProtocol as BSP
 import IPFSSpec as IPFS
 import qualified Data.ByteString as BS
+import qualified Data.ByteString.Char8 as DBC
 
 ---------------------------------------- BitSwap Server -----------------------------------------------
 
@@ -34,7 +35,10 @@ runServer port =
         lock <- newMVar ()
         -- Stores BitSwap's central State
         -- Shared between all chilc sockets
-        sharedState <- newMVar emptyBSNodeState
+        let x = emptyBSNodeState
+            y = x { nodeID_b = DBC.pack "Server" }
+
+        sharedState <- newMVar y
         -- Loop forever waiting for connections.
         procRequests lock sharedState masterSock
 
@@ -62,7 +66,7 @@ runServer port =
                 -- On each message handle function is called
                 -- Which internally uses msgHandler function
                 -- TODO: Split using ustom msgDelimiter
-                mapM_ (handle lock sharedState (Just BS.empty) clientaddr) (lines messages)
+                mapM_ (handle lock sharedState (Just (DBC.pack "Client")) clientaddr) (lines messages)
                 hClose connhdl
                 Main.log $ "client disconnected : " ++ show clientaddr
         
@@ -70,7 +74,9 @@ runServer port =
         --  withMVar functions set's old value of lock back if msgHandler throws an exception
         handle :: MVar () -> MVar BSNodeState -> Maybe (ID NodeID) -> SockAddr -> String -> IO ()
         handle lock sharedState pID clientaddr msg =
-            withMVar lock (\a -> msgHandler sharedState clientaddr msg pID >> return a)
+            do  let x = Data.List.isPrefixOf "OpenMsg " msg
+                    y = if x then Nothing else pID
+                withMVar lock (\a -> msgHandler sharedState clientaddr msg y >> return a)
   
 
 ----------------------------------- MSG HANDLING --------------------------------------------------
@@ -140,17 +146,22 @@ msgHandler state clientaddr msg (Just pID) =
         -- Based on type of Msg handle accordingly
         newstate <- case m of
                     ------------------- WantListMsg Handling -------------------------
-                    WantListMsg wl -> processReceivedWantList oldstate wl pID
+                    WantListMsg wl -> 
+                        do  Main.log "Processing WantListMsg"
+                            processReceivedWantList oldstate wl pID
                     
                     ------------------- BlockMsg Handling -------------------------
                     BlockMsg cid_ obj
                         -- CID matches IPFSObj and we want this obj than handle it
                         | integrity && Data.List.elem cid_ (nodeWantList oldstate)  ->
+                            do  Main.log "Processing BlockMsg"    
                                 handleReceivedBlock oldstate cid_ obj
 
                         -- Else discard it
                         -- Data might be currupted or some other reason
-                        | otherwise -> return oldstate
+                        | otherwise -> 
+                            do  Main.log "Received Block is chucked."
+                                return oldstate
 
                             where integrity = verifyCID obj cid_
 
@@ -159,6 +170,7 @@ msgHandler state clientaddr msg (Just pID) =
 
                     otherwise -> return oldstate
 
+        Main.log ("Updated BSState : \n\n" ++ show newstate)
         -- Update Global BSState
         swapMVar state newstate
         return pID
@@ -207,7 +219,9 @@ msgHandler state clientaddr msg (Just pID) =
                         -- Obj is needed & not present in wantList then add it
                     | otherwise = cid_:oldWantList
                 
-                newPeerInfo = oldPeerInfo { peerWantList = newWantList, sendList = newSendList }
+                newPeerInfo = oldPeerInfo { peerWantList = newWantList, 
+                                            sendList = newSendList, 
+                                            msgQueue = newMsgQueue }
             in      --  Return update BSState
                 oldstate { activePeers = M.insert pID newPeerInfo activePeers_ }
 
@@ -244,6 +258,9 @@ msgHandler state clientaddr msg (Just pID) =
                     nodeHaveList = haveList oldstate
                     -- Insert received Block
                     newHaveList = M.insert cid_ obj nodeHaveList
+                    -- Remove CID from WantList
+                    oldwantlist = nodeWantList oldstate
+                    newwantlist = Data.List.delete cid_ oldwantlist
                     -- Whenever a newBlockReceive we have to tell peer to not send it anymore
                         -- If we receive new request we have to tell peer for that request
                         -- So instead of sending whole WantList
@@ -254,8 +271,11 @@ msgHandler state clientaddr msg (Just pID) =
                     newEntry = Entry cid_ Normal True
                     newWantListMsg = WantListMsg $ newEntry:oldWantListEntries        
                 
+                Main.log ( "New Block is Received with cid = " ++ show cid_ )
+                
                 -- Return updated BSState
                 return oldstate {   
+                        nodeWantList = newwantlist,
                         haveList = newHaveList, 
                         currentWantListMsg = newWantListMsg,
                         activePeers = newActivePeers }

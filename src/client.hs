@@ -55,7 +55,7 @@ series msgs = foldr (\x y -> (x ++ "\n" ++ y) ) "" (map show msgs)
 
 main = 
     do  -- Ledger
-        l <- newLedger (BS.empty) (BS.empty)
+        l <- newLedger (DBC.pack "Client") (DBC.pack "Server")
         -- OpenMsg
         let myOpenMsg = OpenMsg l
         -- Series of Msgs that will be sent
@@ -63,6 +63,7 @@ main =
         -- Print Joined Messages Locally
         putStrLn msgs
         -- Send to remote BitSwap Server
+        send hostname port msgs
         send hostname port msgs
         return ()
 
