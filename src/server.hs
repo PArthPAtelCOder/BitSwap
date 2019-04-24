@@ -180,6 +180,12 @@ msgHandler state clientaddr msg (Just pID) =
                 nodeHaveList = haveList oldstate
                 -- CID corresponding to the Entry
                 cid_ = BSS.cid entry
+                presense = M.lookup cid_ nodeHaveList
+
+                newMsgQueue
+                    | not (cancel entry) && presense /= Nothing = let Just obj = presense
+                                                                in  (BlockMsg cid_ obj):oldMsgQueue
+                    | otherwise = oldMsgQueue 
 
                 -- Updates Peer's Local SendList
                 newSendList 
@@ -189,7 +195,7 @@ msgHandler state clientaddr msg (Just pID) =
                     | Data.List.elem cid_ oldSendList = oldSendList
                         -- If CID is not present in sendList & Node has corresponding
                         -- Data then Entry to sendList
-                    | M.lookup cid_ nodeHaveList /= Nothing = cid_:oldSendList
+                    | presense /= Nothing = cid_:oldSendList
                     | otherwise = oldSendList
 
                 -- Update Peer's Local WantList                    

@@ -83,21 +83,23 @@ verifyCID obj cid_@(CIDv1 _ )	=   False -- TODO
 
 
 -- TODO: Search Function for it
+genKeyPair :: IO (BS.ByteString, BS.ByteString)
 genKeyPair = return (BS.empty, BS.empty)
 
 -- Returns pubKey,priKey, NodeID which has POW with 'difficulty'
 getNodeIDConfig :: IO (BS.ByteString, BS.ByteString,ID NodeID)
 
 getNodeIDConfig =
-do 	(pubKey, priKey) <- genKeyPair()
-	let nodeID_ = hash pubKey
-	let nZeros = findNoOfPrecedingZeroBits $ BS.unpack (hash nodeID_)
-	-- If nZeros are less than difficulty, then another PKI pair
-	if nZeros < difficulty then
-		getNodeIDConfig
-	-- Else return current KeyConfig
-	else
-		return (pubKey, priKey, nodeID_)
+	do 	
+		(pubKey, priKey) <- genKeyPair
+		let nodeID_ = hash pubKey
+		let nZeros = findNoOfPrecedingZeroBits $ BS.unpack (hash nodeID_)
+		-- If nZeros are less than difficulty, then another PKI pair
+		if nZeros < difficulty then
+			getNodeIDConfig
+		-- Else return current KeyConfig
+		else
+			return (pubKey, priKey, nodeID_)
 
 ------------------------
 -- generateNodeID :: BS.ByteString

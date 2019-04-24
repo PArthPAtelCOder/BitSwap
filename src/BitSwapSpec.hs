@@ -4,6 +4,7 @@ import Data.Time.Clock as T
 import qualified Data.Map as M
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as DBC
+import Data.Word (Word8)
 import IPFSSpec as IPFS
 import IPFSSpec (Key, ID, NodeID)
 -- import IPFSSpec 
@@ -29,7 +30,7 @@ ignore_cooldown = 10
 silence_wait = 30
 
 -- delimiter to decide Msg's Boundary
-msgDelimiter = "\r\n\r\n"
+msgDelimiter = "\n"
 --------------------------------------------------------------
 			-- Testing Data --
 --------------------------------------------------------------
@@ -42,7 +43,7 @@ objs =
 
 storage = Prelude.foldl f M.empty objs
 	where
-		f x y = insert (getCIDv0 y) y x
+		f x y = M.insert (getCIDv0 y) y x
 --------------------------------------------------------------
 
 data Priority = Low
@@ -55,7 +56,7 @@ data Entry = Entry {
                     cid :: IPFS.CID ,	-- CID of content
                     priority :: Priority ,	-- Priority for Data Request, Higher Priority
                     cancel :: Bool			-- True: Content is no more needed
-                    } deriving (Enum, Eq, Ord, Show, Read)
+                    } deriving (Eq, Ord, Show, Read)
 
 type WantList = [ IPFS.CID ]
 type MsgQueue = [ Msg ]
@@ -70,15 +71,18 @@ type MsgQueue = [ Msg ]
 -- State of Node running BitSwap Protocol
 data BSNodeState = BSNodeState
 			{
+				nodeID_b :: ID NodeID,
 				ledgers :: M.Map (IPFS.ID NodeID) (Ledger),
 				activePeers :: M.Map (IPFS.ID NodeID) Peer,
 				nodeWantList :: WantList,
 				haveList :: M.Map IPFS.CID IPFS.IPFSObj,
 				blockList :: [ IPFS.ID NodeID ],
 				currentWantListMsg :: Msg
-			}
+			} 
+				deriving(Show)
 
-emptyBSNodeState = BSNodeState M.empty M.empty [] storage [] (WantListMsg [])
+--TODO: Node ID
+emptyBSNodeState = BSNodeState (BS.pack [0::Word8]) M.empty M.empty [] storage [] (WantListMsg [])
 
 
 isPeerBlocked :: 	ID NodeID -- Peer ID
@@ -102,14 +106,15 @@ isContentAvailable cid state =
 data Msg = 	WantListMsg [ Entry ]
 		|	OpenMsg 	Ledger
 		|	BlockMsg 	CID 	IPFS.IPFSObj
+		|	ResetLedgerMsg Ledger
 			
 			deriving (Show, Read, Eq)
 
 serializeMsg :: Msg -> BS.ByteString
-serializeMsg msg = DBC.pack $ (show msg) ++ delimiter
+serializeMsg msg = DBC.pack $ (show msg) ++ msgDelimiter
 
-deserializeMsg :: BS.ByteString -> Msg
-deserializeMsg binaryMsg = Read $ DBC.unpack binaryMsg
+-- deserializeMsg :: BS.ByteString -> Msg
+-- deserializeMsg binaryMsg = Read $ DBC.unpack binaryMsg
 
 
 -- Peer Information
@@ -127,25 +132,27 @@ data Peer = Peer
 			sendList :: [ IPFS.CID ], 	-- CIDs of Blocks that we have
 			
 			msgQueue :: MsgQueue 			-- Messages to be sent, TODO: chan?
-		}
+		} 
+			deriving( Show )
 
 
 -- Used to track Peer Credit
 data Ledger = Ledger
 			{
-				nodeID :: ID NodeID,
+				nodeID_l :: ID NodeID,
 				peerID_l :: ID NodeID,
 				bytesRcvd :: Integer,
 				bytesSent :: Integer,
 				timeStamp :: UTCTime -- timestamp of last succesful block message communication
-			}
+			} 
+				deriving (Show, Read)
 
 -- TODO: add logic for timeStamp comparision
 -- checking for equality is not good
 -- It should be difference < threshold
 instance Eq Ledger where
-	(==) x y = 	if 		(nodeID x) == (peerID y) 
-					&& 	(nodeID y) == (peerID x)
+	(==) x y = 	if 		(nodeID_l x) == (peerID_l y) 
+					&& 	(nodeID_l y) == (peerID_l x)
 					&&  (bytesSent x) == (bytesRcvd y)
 					&&  (bytesSent y) == (bytesRcvd x)	then True
 				else
@@ -154,28 +161,25 @@ instance Eq Ledger where
 
 -- Resets Ledger
 resetLedger :: 		Ledger -- Old Ledger
-				-> 	Ledger -- New Ledger
+				-> 	IO Ledger -- New Ledger
 
-resetLedger ledger = ledger {
-								bytesRcvd = 0,
-								bytesSent = 0,
-								timeStamp = T.getCurrentTime
-							}
+resetLedger ledger = 
+	do
+		time <- T.getCurrentTime
+		return ledger {	bytesRcvd = 0,
+						bytesSent = 0,
+						timeStamp = time 	}
 
 -- Create en empty ledger
 newLedger ::	ID NodeID  -- Node ID
 			-> 	ID NodeID  -- Peer ID
-			->	Ledger     -- New Ledger
+			->	IO Ledger     -- New Ledger
 
-newLedger peerID_ nodeID_ = Ledger ( nodeID_, peerID_, 0, 0, T.getCurrentTime )
+newLedger nodeID_ peerID_ = 
+	do 	time <- T.getCurrentTime
+		return (Ledger nodeID_ peerID_ 0 0 time)
 
 -- Returns as it is if exists else returns fresh ledger
-fetchLedgerFromArchive :: BSNodeState -> ID NodeID -> Ledger
+fetchLedgerFromArchive :: BSNodeState -> ID NodeID -> Maybe Ledger
 
-fetchLedgerFromArchive state pId = 
-	let ledgers_ = ledgers state
-		nId = nodeID state
-		pLedger = M.lookup pId ledgers_
-	in
-		case pLedger of Nothing -> newLedger pId nId
-			            Just l -> l
+fetchLedgerFromArchive state pId = 	M.lookup pId (ledgers state)
