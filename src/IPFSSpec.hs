@@ -1,12 +1,20 @@
 module IPFSSpec where
 
-
+import Data.Bits
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as DBC
 import Crypto.Hash.SHA256 (hash)
 import Data.Word (Word8)
 -- import MultiFormats as MF --Link with old project
 import Data.ByteString.Base58 (encodeBase58, decodeBase58, bitcoinAlphabet)
+
+
+------------ Constants ---------------------------
+-- Min no of preceding 0 bits required in hash
+-- of NodeID
+-- Prevent malicious user from keep changing NodeIDs
+difficulty = 4
+--------------------------------------------------
 
 
 data CID 	= 	CIDv0 BS.ByteString -- always starts with Qm
@@ -74,20 +82,48 @@ verifyCID obj cid_@(CIDv0 _ )	=	cid_ == getCIDv0 obj
 verifyCID obj cid_@(CIDv1 _ )	=   False -- TODO
 
 
+-- TODO: Search Function for it
+genKeyPair = return (BS.empty, BS.empty)
 
+-- Returns pubKey,priKey, NodeID which has POW with 'difficulty'
+getNodeIDConfig :: IO (BS.ByteString, BS.ByteString,ID NodeID)
 
+getNodeIDConfig =
+do 	(pubKey, priKey) <- genKeyPair()
+	let nodeID_ = hash pubKey
+	let nZeros = findNoOfPrecedingZeroBits $ BS.unpack (hash nodeID_)
+	-- If nZeros are less than difficulty, then another PKI pair
+	if nZeros < difficulty then
+		getNodeIDConfig
+	-- Else return current KeyConfig
+	else
+		return (pubKey, priKey, nodeID_)
 
+------------------------
+-- generateNodeID :: BS.ByteString
 
+--	| Finds no of preceding zero bits in [Word8]
+-- For ByteString, use unpack
+findNoOfPrecedingZeroBits :: [Word8] -> Int
 
+findNoOfPrecedingZeroBits [] = 0
+findNoOfPrecedingZeroBits (x:xs)	
+	| n == 8 = 8 + (findNoOfPrecedingZeroBits  xs)
+	| otherwise = n
+		
+	where n = countPrecedingZeros x
 
-
-
-
-
-
-
-
-
+countPrecedingZeros :: Word8 -> Int
+countPrecedingZeros word
+	| testBit word 7 = 0
+	| testBit word 6 = 1
+	| testBit word 5 = 2
+	| testBit word 4 = 3
+	| testBit word 3 = 4
+	| testBit word 2 = 5
+	| testBit word 1 = 6
+	| testBit word 0 = 7
+	| otherwise 	 = 8
 
 
 
